@@ -2,12 +2,20 @@ package com.example.conexiones_aaa
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
-import android.net.wifi.WifiConfiguration
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.ScanResult
 import android.net.wifi.WifiManager
+import android.net.wifi.WifiNetworkSpecifier
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.widget.*
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -17,11 +25,12 @@ class MainActivity : AppCompatActivity() {
     private val permissionsRequestCode = 1
     private lateinit var wifiManager: WifiManager
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        wifiManager = getSystemService(WIFI_SERVICE) as WifiManager
+        wifiManager = getSystemService(Context.WIFI_SERVICE) as WifiManager
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED) {
@@ -32,10 +41,9 @@ class MainActivity : AppCompatActivity() {
 
         val scanButton = findViewById<Button>(R.id.button)
         scanButton.setOnClickListener { startScan() }
-
-
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == permissionsRequestCode && grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -45,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     @SuppressLint("MissingPermission")
     private fun startScan() {
         Toast.makeText(this, "Escaneando reddes", Toast.LENGTH_SHORT).show()
@@ -70,26 +79,34 @@ class MainActivity : AppCompatActivity() {
                     val password = passwordInput.text.toString()
                     Toast.makeText(this, "contraseña ingresada ${password}", Toast.LENGTH_SHORT).show()
 
-                    val wifiConfiguration = WifiConfiguration()
-                    wifiConfiguration.SSID = "\"${wifiScanResult.SSID}\""
-                    wifiConfiguration.preSharedKey =  password
+                    val specifier = WifiNetworkSpecifier.Builder()
+                        .setSsid(wifiScanResult.SSID)
+                        .setWpa2Passphrase(password)
+                        .build()
 
-                    
-                    if (password == wifiConfiguration.preSharedKey){
-                        Toast.makeText(this, "conectando", Toast.LENGTH_SHORT).show()
-                        val networkId = wifiManager.addNetwork(wifiConfiguration)
-                        wifiManager.disconnect()
-                        wifiManager.enableNetwork(networkId, true)
-                        wifiManager.reconnect()
-                    }else{
-                        Toast.makeText(this, "contraseña incorrecta", Toast.LENGTH_SHORT).show()
+                    val request = NetworkRequest.Builder()
+                        .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                        .setNetworkSpecifier(specifier)
+                        .build()
+
+                    val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val networkCallback = object : ConnectivityManager.NetworkCallback() {
+                        override fun onAvailable(network: Network) {
+                            // Conexión disponible, puedes realizar operaciones en la red
+                        }
                     }
-                    
+                    val activeNetworkInfo = connectivityManager.activeNetworkInfo
+                    if (activeNetworkInfo != null && activeNetworkInfo.isConnected) {
+                        Toast.makeText(this, "Estas conectado a internet", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "No estas conectado", Toast.LENGTH_SHORT).show()
+                    }
+                    connectivityManager.requestNetwork(request, networkCallback)
                 }
                 dialog.show()
             }
         }
         scrollView.removeAllViews() // Elimina cualquier vista anterior
         scrollView.addView(linearLayout)
-        }
     }
+}
